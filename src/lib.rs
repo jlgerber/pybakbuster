@@ -16,29 +16,52 @@ use chrono::prelude::*;
 /// retrieves the file given the basename and a datetime string of
 /// the form returned by python's ctime
 fn get_file_on(file: String, datetime: String) -> PyResult<String> {
-    let pb = PathBuf::from(file.as_str());
+    let mut pb = PathBuf::from(file.as_str());
 
+    // get filename
+    // for some reason ok_or(...) does not work here. I have to use the more verbose
+    // match...
+    let filename = match pb.file_name() {
+        Some (fname) => match fname.to_str() {
+            Some(fstr) => fstr.to_string(), // need to allocate to deal with immutable borrow in the midst of mut borrow
+            None => return Err(exceptions::ValueError::py_err("Unable to convert file name from OsStr to &str")),
+        },
+        None => return Err(exceptions::ValueError::py_err("Unable to get file name from input")),
+    };
+    // pop off file
+    pb.pop();
+    // push on bak directory
+    pb.push("bak");
+    // push filename as a directory
+    pb.push(filename.as_str());
+    // build the swinstall stack file name and push it on the pathbuf
+    pb.push(format!("{}_swinstall_stack", filename));
+    // grab the directory from the path. Ideally we would do this before the
+    // former call, but we run into mut vs non-mut reference scope issues so...
     let directory = match pb.parent() {
-        Some(d) => d,
+        Some(d) => match d.to_str() {
+            Some(d) => d,
+            None => return Err(exceptions::ValueError::py_err("Unable to get parent path from supplied file")),
+        },
         None => return Err(exceptions::ValueError::py_err("Unable to get parent path from supplied file")),
     };
-    //.ok_or(|e| exceptions::ValueError::py_err("Unable to get parent path from supplied file")) ?;
-
+    // parse the datetime passed in by the user
     let dt = NaiveDateTime::parse_from_str(datetime.as_str(), CTIMEFMT)
     .map_err(|e| exceptions::ValueError::py_err(format!("error parsing datetime from '{}': {}",datetime.as_str(), e)))?;
-
-    let filehandle = File::open(file.as_str())
-    .map_err(|e| exceptions::ValueError::py_err(format!("error calling File::open with {}: {}",file.as_str(), e) ))?;
-
+    // open the file
+    let filehandle = File::open(pb.as_path())
+    .map_err(|e| exceptions::ValueError::py_err(format!("Error calling File::open with {}: {}",file.as_str(), e) ))?;
+    // get a buffered file handle
     let fileh = BufReader::new(filehandle);
+    // pass in to get_file_version_on
     let result = get_file_version_on(fileh, dt)
     .map_err(|e| exceptions::ValueError::py_err(format!("get_file_version_on error for {:?} and {:?}: {}",file, dt, e)))?;
 
-    // convert to string
-    let directory = match directory.to_str() {
-        Some(d) => d,
-        None => return Err(exceptions::ValueError::py_err("Unable to convert directory to str")),
-    };
+    // // convert to string
+    // let directory = match directory.to_str() {
+    //     Some(d) => d,
+    //     None => return Err(exceptions::ValueError::py_err("Unable to convert directory to str")),
+    // };
     //.ok_or(|e|  )?;
 
     Ok(format!("{}/{}",directory, result))
