@@ -1,6 +1,6 @@
 [package]
 name = "pybakbuster"
-version = "0.3.4"
+version = "0.4.1"
 authors = ["jonathan gerber <jlgerber@gmail.com>"]
 
 [lib]
@@ -11,7 +11,7 @@ crate-type = ["cdylib"]
 chrono="0.4"
 
 [dependencies.bakbuster]
-path = "../../bakbuster"
+path = "../bakbuster"
 
 [dependencies.pyo3]
 git = "https://github.com/PyO3/pyo3"
