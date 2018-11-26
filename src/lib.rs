@@ -13,10 +13,14 @@ use chrono::prelude::*;
 
 
 #[pyfunction]
-/// retrieves the file given the basename and a datetime string of
-/// the form returned by python's ctime
-fn get_file_on(file: String, datetime: String) -> PyResult<String> {
-    let mut pb = PathBuf::from(file.as_str());
+/// retrieves the file given the full path to the swinstalled file and a
+/// string formatted by using datetime.ctime() method
+///
+/// # example
+///
+/// get_file_on(/dd/facility/etc/packages.xml, Sat Dec 23 09:31:46 2017)
+fn get_file_on(file: &str, datetime: &str) -> PyResult<String> {
+    let mut pb = PathBuf::from(file);
 
     // get filename
     // for some reason ok_or(...) does not work here. I have to use the more verbose
@@ -46,23 +50,16 @@ fn get_file_on(file: String, datetime: String) -> PyResult<String> {
         None => return Err(exceptions::ValueError::py_err("Unable to get parent path from supplied file")),
     };
     // parse the datetime passed in by the user
-    let dt = NaiveDateTime::parse_from_str(datetime.as_str(), CTIMEFMT)
-    .map_err(|e| exceptions::ValueError::py_err(format!("error parsing datetime from '{}': {}",datetime.as_str(), e)))?;
+    let dt = NaiveDateTime::parse_from_str(datetime, CTIMEFMT)
+    .map_err(|e| exceptions::ValueError::py_err(format!("error parsing datetime from '{}': {}",datetime, e)))?;
     // open the file
     let filehandle = File::open(pb.as_path())
-    .map_err(|e| exceptions::ValueError::py_err(format!("Error calling File::open with {}: {}",file.as_str(), e) ))?;
+    .map_err(|e| exceptions::ValueError::py_err(format!("Error calling File::open with {}: {}",file, e) ))?;
     // get a buffered file handle
     let fileh = BufReader::new(filehandle);
     // pass in to get_file_version_on
     let result = get_file_version_on(fileh, dt)
     .map_err(|e| exceptions::ValueError::py_err(format!("get_file_version_on error for {:?} and {:?}: {}",file, dt, e)))?;
-
-    // // convert to string
-    // let directory = match directory.to_str() {
-    //     Some(d) => d,
-    //     None => return Err(exceptions::ValueError::py_err("Unable to convert directory to str")),
-    // };
-    //.ok_or(|e|  )?;
 
     Ok(format!("{}/{}",directory, result))
 }
