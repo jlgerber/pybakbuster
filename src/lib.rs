@@ -6,7 +6,7 @@ extern crate chrono;
 
 use bakbuster::prelude::*;
 use chrono::prelude::*;
-use pyo3::{ prelude::*, exceptions };
+use pyo3::{ prelude::*, exceptions::ValueError };
 use std::{io::BufReader,fs::File, path::PathBuf};
 
 
@@ -23,45 +23,41 @@ use std::{io::BufReader,fs::File, path::PathBuf};
 /// get_file_on('/dd/facility/etc/packages.xml', 'Sat Dec 23 09:31:46 2017')
 fn get_file_on(file: &str, datetime: &str) -> PyResult<String> {
     let mut pb = PathBuf::from(file);
+    
     // get filename
-    // for some reason ok_or(...) does not work here. I have to use the more verbose
-    // match...
-    let filename = match pb.file_name() {
-        Some (fname) => match fname.to_str() {
-            Some(fstr) => fstr.to_string(), // need to allocate to deal with immutable borrow in the midst of mut borrow
-            None => return Err(exceptions::ValueError::py_err("Unable to convert file name from OsStr to &str")),
-        },
-        None => return Err(exceptions::ValueError::py_err("Unable to get file name from input")),
-    };
+    let filename = pb.file_name()
+    .ok_or_else(|| ValueError::py_err("Unable to get file name from input"))?
+    .to_str()
+    .ok_or_else(|| ValueError::py_err("Unable to convert file name from OsStr to &str"))?
+    .to_string();
+
     // pop off file
     pb.pop();
+
     // push on bak directory
     pb.push("bak");
+    
     // push filename as a directory
     pb.push(filename.as_str());
 
-    // build the swinstall stack file name and push it on the pathbuf
     pb.push(format!("{}_swinstall_stack", filename));
-    // grab the directory from the path. Ideally we would do this before the
-    // former call, but we run into mut vs non-mut reference scope issues so...
-    let directory = match pb.parent() {
-        Some(d) => match d.to_str() {
-            Some(d) => d,
-            None => return Err(exceptions::ValueError::py_err("Unable to get parent path from supplied file")),
-        },
-        None => return Err(exceptions::ValueError::py_err("Unable to get parent path from supplied file")),
-    };
+    
+    let directory = pb.parent()
+    .ok_or_else (|| ValueError::py_err("Unable to get parent path from supplied file"))?
+    .to_str()
+    .ok_or_else(|| ValueError::py_err("Unable to get parent path from supplied file"))?;
+
     // parse the datetime passed in by the user
     let dt = NaiveDateTime::parse_from_str(datetime, CTIMEFMT)
-    .map_err(|e| exceptions::ValueError::py_err(format!("error parsing datetime from '{}': {}",datetime, e)))?;
+    .map_err(|e| ValueError::py_err(format!("error parsing datetime from '{}': {}",datetime, e)))?;
     // open the file
     let filehandle = File::open(pb.as_path())
-    .map_err(|e| exceptions::ValueError::py_err(format!("Error calling File::open with {}: {}",file, e) ))?;
+    .map_err(|e| ValueError::py_err(format!("Error calling File::open with {}: {}",file, e) ))?;
     // get a buffered file handle
     let fileh = BufReader::new(filehandle);
     // pass in to get_file_version_on
     let result = get_file_version_on(fileh, dt)
-    .map_err(|e| exceptions::ValueError::py_err(format!("get_file_version_on error for {:?} and {:?}: {}",file, dt, e)))?;
+    .map_err(|e| ValueError::py_err(format!("get_file_version_on error for {:?} and {:?}: {}",file, dt, e)))?;
 
     Ok(format!("{}/{}/{}", directory, result, filename.as_str()))
 }
