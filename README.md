@@ -38,3 +38,12 @@ git clone clone --recurse-submodules https://jlgerber/pybakbuster
 ```
 git submodule update --remote bakbuster
 ```
+
+## COMPLETE BUILD INSTRUCTIONS
+- git clone https://github.com/jlgerber/rustydocker 
+- cd rustup
+- sudo docker build -t jgerber/rustup:nightly-2018-11-12 .
+- cd ../withpython 
+- sudo docker build -t jgerber/pyo3-pack:nightly-2018-11-12
+- git clone --recurse-submodules https://github.com/jlgerber/pybakbuster 
+- sudo docker run --rm -v "${PWD}":/pybakbuster -w /pybakbuster jgerber/pyo3-pack:nightly-2018-11-12  
