@@ -7,12 +7,12 @@ extern crate chrono;
 use bakbuster::prelude::*;
 use chrono::prelude::*;
 use pyo3::{ prelude::*, exceptions };
-use std::{io::BufReader,fs::File, path::PathBuf};
+use std::{io::BufReader,fs::File, path::PathBuf, path::Path};
 
 
 #[pyfunction]
 /// retrieves the file given the full path to the swinstalled file and a
-/// string formatted by using datetime.ctime() method
+/// &str formatted by using datetime.ctime() method
 ///
 /// :param string file:
 ///     The full path to the installed file
@@ -22,48 +22,82 @@ use std::{io::BufReader,fs::File, path::PathBuf};
 ///
 /// get_file_on('/dd/facility/etc/packages.xml', 'Sat Dec 23 09:31:46 2017')
 fn get_file_on(file: &str, datetime: &str) -> PyResult<String> {
-    let mut pb = PathBuf::from(file);
-    // get filename
-    // for some reason ok_or(...) does not work here. I have to use the more verbose
-    // match...
-    let filename = match pb.file_name() {
+
+    let file_path = Path::new(file);
+
+    let filename = get_filename_from_path(&file_path)?;
+
+    let swinstall_stack = build_path_to_swinstall_stack(&file_path, filename.as_str());
+
+    let file_at_datetime = choose_file_from_swinstall_stack(datetime, &swinstall_stack, filename.as_str())?;
+
+    Ok(file_at_datetime)
+}
+
+fn get_filename_from_path(path: &Path) -> PyResult<String> {
+    let filename = match path.file_name() {
         Some (fname) => match fname.to_str() {
             Some(fstr) => fstr.to_string(), // need to allocate to deal with immutable borrow in the midst of mut borrow
             None => return Err(exceptions::ValueError::py_err("Unable to convert file name from OsStr to &str")),
         },
         None => return Err(exceptions::ValueError::py_err("Unable to get file name from input")),
     };
-    // pop off file
-    pb.pop();
-    // push on bak directory
-    pb.push("bak");
-    // push filename as a directory
-    pb.push(filename.as_str());
+    Ok(filename)
+}
 
+fn build_path_to_swinstall_stack(file: &Path, filename: &str) -> PathBuf  {
+    // construct a PathBuf which we will build up to point at the
+    // swinstall stack
+    let mut swinstall_stack = PathBuf::from(file);
+    // pop off file name
+    swinstall_stack.pop();
+    // push on bak directory
+    swinstall_stack.push("bak");
+    // push filename as a directory
+    swinstall_stack.push(filename);
     // build the swinstall stack file name and push it on the pathbuf
-    pb.push(format!("{}_swinstall_stack", filename));
-    // grab the directory from the path. Ideally we would do this before the
-    // former call, but we run into mut vs non-mut reference scope issues so...
-    let directory = match pb.parent() {
+    swinstall_stack.push(format!("{}_swinstall_stack", filename));
+    swinstall_stack
+}
+
+fn get_directory_from_path(path: &PathBuf) -> PyResult<&str> {
+    let directory = match path.parent() {
         Some(d) => match d.to_str() {
             Some(d) => d,
             None => return Err(exceptions::ValueError::py_err("Unable to get parent path from supplied file")),
         },
         None => return Err(exceptions::ValueError::py_err("Unable to get parent path from supplied file")),
     };
-    // parse the datetime passed in by the user
-    let dt = NaiveDateTime::parse_from_str(datetime, CTIMEFMT)
-    .map_err(|e| exceptions::ValueError::py_err(format!("error parsing datetime from '{}': {}",datetime, e)))?;
-    // open the file
-    let filehandle = File::open(pb.as_path())
-    .map_err(|e| exceptions::ValueError::py_err(format!("Error calling File::open with {}: {}",file, e) ))?;
-    // get a buffered file handle
-    let fileh = BufReader::new(filehandle);
-    // pass in to get_file_version_on
-    let result = get_file_version_on(fileh, dt)
-    .map_err(|e| exceptions::ValueError::py_err(format!("get_file_version_on error for {:?} and {:?}: {}",file, dt, e)))?;
+    Ok(directory)
+}
 
-    Ok(format!("{}/{}/{}", directory, result, filename.as_str()))
+fn choose_file_from_swinstall_stack(datetime: &str, pathbuf: &PathBuf, filename: &str) -> PyResult<String> {
+
+    let directory = get_directory_from_path(pathbuf)?;
+
+    // parse the datetime passed in by the user
+    let dt =
+         NaiveDateTime::parse_from_str(datetime, CTIMEFMT)
+        .map_err(|e| exceptions::ValueError::py_err(
+            format!("error parsing datetime from '{}': {}",datetime, e)))?;
+
+    // open the file
+    let path = pathbuf.as_path();
+    let filehandle =
+        File::open(path)
+        .map_err(|e| exceptions::ValueError::py_err(
+            format!("Error calling File::open with {:?}: {}",path, e) ))?;
+
+    // get a buffered file handle
+    let buffered_filehandle = BufReader::new(filehandle);
+
+    // pass in to get_file_version_on
+    let result =
+        get_file_version_on(buffered_filehandle, dt)
+        .map_err(|e| exceptions::ValueError::py_err(
+            format!("get_file_version_on error for {:?} and {:?}: {}",path, dt, e)))?;
+
+    Ok(format!("{}/{}/{}", directory, result, filename))
 }
 
 /// This module is a python module implemented in Rust.
