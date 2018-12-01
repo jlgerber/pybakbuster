@@ -34,6 +34,14 @@ fn get_file_on(file: &str, datetime: &str) -> PyResult<String> {
     Ok(file_at_datetime)
 }
 
+
+/// This module is a python module implemented in Rust.
+#[pymodule]
+fn pybakbuster(_py: Python, m: &PyModule) -> PyResult<()> {
+    m.add_wrapped(wrap_function!(get_file_on))?;
+    Ok(())
+}
+
 fn get_filename_from_path(path: &Path) -> PyResult<&str> {
     let filename = match path.file_name() {
         Some (fname) => match fname.to_str() {
@@ -101,9 +109,15 @@ fn choose_file_from_swinstall_stack(datetime: &str, pathbuf: &PathBuf, filename:
     Ok(format!("{}/{}/{}", directory, result, filename))
 }
 
-/// This module is a python module implemented in Rust.
-#[pymodule]
-fn pybakbuster(_py: Python, m: &PyModule) -> PyResult<()> {
-    m.add_wrapped(wrap_function!(get_file_on))?;
-    Ok(())
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn get_filename() {
+        let fullpath = Path::new("/foo/bar/bla.xml");
+        let expected = "bla.xml";
+        let result = get_filename_from_path(&fullpath).unwrap();
+        assert_eq!(result, expected);
+    }
 }
