@@ -18,7 +18,6 @@ RUN pip install pyo3-pack
 WORKDIR /pybakbuster
 ARG PY_VERSION=python2.7
 
-# build the release version of yaams
 #RUN cargo build --release
 RUN pyo3-pack build -i ${PY_VERSION} -o /wheels
 RUN find /wheels/* -exec pip install '{}' -t ${INSTALL} \;
