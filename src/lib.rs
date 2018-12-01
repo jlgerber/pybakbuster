@@ -27,17 +27,17 @@ fn get_file_on(file: &str, datetime: &str) -> PyResult<String> {
 
     let filename = get_filename_from_path(&file_path)?;
 
-    let swinstall_stack = build_path_to_swinstall_stack(&file_path, filename.as_str());
+    let swinstall_stack = build_path_to_swinstall_stack(&file_path, filename);
 
-    let file_at_datetime = choose_file_from_swinstall_stack(datetime, &swinstall_stack, filename.as_str())?;
+    let file_at_datetime = choose_file_from_swinstall_stack(datetime, &swinstall_stack, filename)?;
 
     Ok(file_at_datetime)
 }
 
-fn get_filename_from_path(path: &Path) -> PyResult<String> {
+fn get_filename_from_path(path: &Path) -> PyResult<&str> {
     let filename = match path.file_name() {
         Some (fname) => match fname.to_str() {
-            Some(fstr) => fstr.to_string(), // need to allocate to deal with immutable borrow in the midst of mut borrow
+            Some(fstr) => fstr, // need to allocate to deal with immutable borrow in the midst of mut borrow
             None => return Err(exceptions::ValueError::py_err("Unable to convert file name from OsStr to &str")),
         },
         None => return Err(exceptions::ValueError::py_err("Unable to get file name from input")),
