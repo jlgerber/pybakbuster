@@ -46,10 +46,11 @@ fn get_filename_from_path(path: &Path) -> PyResult<String> {
 }
 
 fn build_path_to_swinstall_stack(file: &Path, filename: &str) -> PathBuf  {
-    // construct a PathBuf which we will build up to point at the
-    // swinstall stack
+    // construct a PathBuf from the full path to the versionless file.
+    // We will manipulate the pathbuf to point at the swinstall_stack for
+    // the original versionless file.
     let mut swinstall_stack = PathBuf::from(file);
-    // pop off file name
+    // pop off file name from the
     swinstall_stack.pop();
     // push on bak directory
     swinstall_stack.push("bak");
