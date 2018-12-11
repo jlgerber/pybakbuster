@@ -32,7 +32,7 @@ This is primarily to get around the limitation with Dockerfiles not being able t
 In order to get the contents of bakbuster when pulling the project, do the following:
 
 ```
-git clone clone --recurse-submodules https://jlgerber/pybakbuster
+git clone --recurse-submodules https://github.com/jlgerber/pybakbuster
 ```
 ### Fetching updates to the submodule
 ```
